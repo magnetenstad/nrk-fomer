@@ -1,6 +1,7 @@
 #+vet unused shadowing using-stmt style semicolon
 package main
 import "core:math/rand"
+import "core:strings"
 import rl "vendor:raylib"
 
 Grid :: struct {
@@ -12,11 +13,11 @@ Grid :: struct {
 }
 
 CellKind :: enum {
-	Empty,
-	Gree,
-	Blue,
-	Oran,
-	Pink,
+	Empty = '-',
+	Gree  = 'G',
+	Blue  = 'B',
+	Oran  = 'O',
+	Pink  = 'P',
 }
 
 cell_color := map[CellKind]rl.Color {
@@ -69,6 +70,20 @@ grid_apply_gravity :: proc(grid: ^Grid) {
 	}
 }
 
+grid_to_hash :: proc(grid: ^Grid) -> string {
+	hash := strings.Builder{}
+
+	for y in 0 ..< GRID_ROWS {
+		for x in 0 ..< GRID_COLUMNS {
+			cell := grid.rows[y][x]
+			strings.write_byte(&hash, u8(cell))
+		}
+		strings.write_byte(&hash, ' ')
+	}
+
+	return strings.to_string(hash)
+}
+
 grid_step :: proc(grid: ^Grid) {
 	if rl.IsMouseButtonPressed(.LEFT) {
 		if grid.rows[grid.hover.y][grid.hover.x] == CellKind.Empty {
@@ -77,38 +92,41 @@ grid_step :: proc(grid: ^Grid) {
 		grid.clicks += 1
 		grid_flood_empty(grid, grid.hover)
 		grid_apply_gravity(grid)
+
+		hash := grid_to_hash(grid)
+		print(hash)
 	}
 
-	position := IVec2 {
-		int(rand.int31_max(GRID_COLUMNS)),
-		int(rand.int31_max(GRID_ROWS)),
-	}
-	for grid.rows[position.y][position.x] == CellKind.Empty {
-		position = IVec2 {
-			int(rand.int31_max(GRID_COLUMNS)),
-			int(rand.int31_max(GRID_ROWS)),
-		}
-	}
-	grid.clicks += 1
-	grid_flood_empty(grid, position)
-	grid_apply_gravity(grid)
+	// position := IVec2 {
+	// 	int(rand.int31_max(GRID_COLUMNS)),
+	// 	int(rand.int31_max(GRID_ROWS)),
+	// }
+	// for grid.rows[position.y][position.x] == CellKind.Empty {
+	// 	position = IVec2 {
+	// 		int(rand.int31_max(GRID_COLUMNS)),
+	// 		int(rand.int31_max(GRID_ROWS)),
+	// 	}
+	// }
+	// grid.clicks += 1
+	// grid_flood_empty(grid, position)
+	// grid_apply_gravity(grid)
 
-	blocks := 0
-	for row in grid.rows {
-		for cell in row {
-			if cell != CellKind.Empty {
-				blocks += 1
-			}
-		}
-	}
-	if blocks == 0 {
-		grid.attempts += 1
-		if grid.best == 0 || grid.clicks < grid.best {
-			grid.best = grid.clicks
-			print("Found", grid.best, "in", grid.attempts, "tries.")
-		}
-		grid_set(grid)
-	}
+	// blocks := 0
+	// for row in grid.rows {
+	// 	for cell in row {
+	// 		if cell != CellKind.Empty {
+	// 			blocks += 1
+	// 		}
+	// 	}
+	// }
+	// if blocks == 0 {
+	// 	grid.attempts += 1
+	// 	if grid.best == 0 || grid.clicks < grid.best {
+	// 		grid.best = grid.clicks
+	// 		print("Found", grid.best, "in", grid.attempts, "tries.")
+	// 	}
+	// 	grid_set(grid)
+	// }
 }
 
 grid_flood_empty :: proc(grid: ^Grid, position: IVec2) {
