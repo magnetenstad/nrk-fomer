@@ -13,14 +13,20 @@ get_game_state :: proc() -> ^Game_State {
 
 main :: proc() {
 	_game_state = game_state_create()
-	graphics_create(&_game_state)
 
-	for !rl.WindowShouldClose() {
-		_main_step(&_game_state)
-		_main_draw(&_game_state)
-	}
+	count := branch_and_bound_search(&_game_state.grid.rows)
 
-	rl.CloseWindow()
+	print("Found", count)
+
+	// _game_state = game_state_create()
+	// graphics_create(&_game_state)
+
+	// for !rl.WindowShouldClose() {
+	// 	_main_step(&_game_state)
+	// 	_main_draw(&_game_state)
+	// }
+
+	// rl.CloseWindow()
 }
 
 
