@@ -15,9 +15,17 @@ Game :: struct {
 }
 
 Node :: struct {
-	h:    f32,
+	h:    f64,
 	hash: string,
-	cost: int,
+}
+
+Node_Info :: struct {
+	hash:             string,
+	grid:             Grid,
+	cost:             int,
+	options:          [dynamic]IVec2,
+	rest_lower_bound: int,
+	click_prev:       IVec2,
 }
 
 CellKind :: enum {
@@ -50,21 +58,21 @@ grid_set :: proc(grid: ^Game) {
 	grid_init(grid)
 
 	grid.rows = {
-		{.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		{.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		{.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		{.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		{.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		{.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
+		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
+		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
+		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
+		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
+		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
+		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
 		{.Pink, .Pink, .Oran, .Blue, .Blue, .Pink, .Pink},
 		{.Oran, .Blue, .Oran, .Oran, .Pink, .Pink, .Blue},
 		{.Pink, .Pink, .Pink, .Gree, .Pink, .Gree, .Gree},
-		// {.Pink, .Gree, .Pink, .Gree, .Gree, .Blue, .Oran},
-		// {.Oran, .Pink, .Oran, .Gree, .Blue, .Gree, .Blue},
-		// {.Blue, .Gree, .Oran, .Gree, .Gree, .Gree, .Oran},
-		// {.Oran, .Pink, .Pink, .Pink, .Blue, .Gree, .Blue},
-		// {.Pink, .Blue, .Blue, .Blue, .Gree, .Blue, .Oran},
-		// {.Pink, .Oran, .Pink, .Oran, .Gree, .Blue, .Blue},
+		{.Pink, .Gree, .Pink, .Gree, .Gree, .Blue, .Oran},
+		{.Oran, .Pink, .Oran, .Gree, .Blue, .Gree, .Blue},
+		{.Blue, .Gree, .Oran, .Gree, .Gree, .Gree, .Oran},
+		{.Oran, .Pink, .Pink, .Pink, .Blue, .Gree, .Blue},
+		{.Pink, .Blue, .Blue, .Blue, .Gree, .Blue, .Oran},
+		{.Pink, .Oran, .Pink, .Oran, .Gree, .Blue, .Blue},
 	}
 }
 
@@ -185,90 +193,74 @@ heap_less :: proc(a: Node, b: Node) -> bool {
 
 branch_and_bound_search :: proc(grid_0: ^Grid) -> int {
 
-	hash_0 := grid_to_hash(grid_0)
+	hash_0 := grid_to_hash(grid_0, 0)
 
-	map_grids := map[string]Grid{}
-	map_grids[hash_0] = grid_0^
-	defer delete(map_grids)
-	map_click_options := map[string][dynamic]IVec2{}
-	map_click_options[hash_0] = grid_region_options(grid_0^)
-	defer delete(map_click_options)
-	map_rest_lower_bound := map[string]int{}
-	map_rest_lower_bound[hash_0] = get_lower_bound(grid_0^)
-	defer delete(map_rest_lower_bound)
-
+	node_infos := map[string]Node_Info{}
+	node_infos[hash_0] = Node_Info {
+		hash             = hash_0,
+		cost             = 0,
+		grid             = grid_0^,
+		options          = grid_region_options(grid_0^),
+		rest_lower_bound = get_lower_bound(grid_0^),
+	}
 	lower_bound := get_lower_bound(grid_0^)
 	upper_bound := get_upper_bound(grid_0^)
+	upper_bound_0 := upper_bound
 	print(lower_bound, upper_bound)
 
 	array := make([dynamic]Node, 1)
 	array[0] = Node {
-		cost = 0,
-		hash = hash_0,
 		h    = 0,
+		hash = hash_0,
 	}
 	heap := build_min_heap(array, heap_less)
 	defer delete(array)
 
 	for len(heap.array) > 0 && lower_bound != upper_bound {
 
-		node := pop(&heap)
-		print(node.hash, node.cost, node.h)
-		for n in heap.array {
-			print(n)
-		}
+		node_hash := pop(&heap)
+		node := node_infos[node_hash.hash]
+		// print(node.hash, node.cost, node_hash.h, node.click_prev)
 
-		grid := map_grids[node.hash]
-		click_options := map_click_options[node.hash]
-		rest_lower_bound := map_rest_lower_bound[node.hash]
-
-		if node.cost + rest_lower_bound >= upper_bound {
+		if node.cost + node.rest_lower_bound >= upper_bound {
 			continue
 		}
 
-		for pos in click_options {
-			grid_next := grid
+		for pos in node.options {
+			grid_next := node.grid
 			grid_flood_empty(&grid_next, pos)
 			grid_apply_gravity(&grid_next)
-			hash_next := grid_to_hash(&grid_next)
-			if hash_next in map_grids {
+			hash_next := grid_to_hash(&grid_next, node.cost + 1)
+			if hash_next in node_infos {
 				continue
 			}
-			map_grids[hash_next] = grid_next
+			node_next := Node_Info {
+				hash             = hash_next,
+				cost             = node.cost + 1,
+				grid             = grid_next,
+				options          = grid_region_options(grid_next),
+				rest_lower_bound = get_lower_bound(grid_next),
+				click_prev       = pos,
+			}
+			node_infos[hash_next] = node_next
 
-			click_options_next := grid_region_options(grid_next)
-			map_click_options[hash_next] = click_options_next
-
-			cost_next := node.cost + 1
-
-			if len(click_options_next) == 0 {
-				if cost_next < upper_bound {
-					print("Found", cost_next)
-					upper_bound = cost_next
-					return upper_bound
+			if len(node_next.options) == 0 {
+				if node_next.cost < upper_bound {
+					print("Found", node_next.cost)
+					upper_bound = node_next.cost
 				}
 				continue
 			}
 
-			rest_lower_bound_next := get_lower_bound(grid_next)
-			map_rest_lower_bound[hash_next] = rest_lower_bound_next
-
-			h: f32 = 0
-			h += f32(rest_lower_bound_next)
-			h += f32(len(click_options_next))
-			h /= f32(upper_bound - cost_next)
-
-			node_next := Node {
-				hash = hash_next,
-				cost = cost_next,
-				h    = h,
-			}
-
-			if cost_next + rest_lower_bound_next >= upper_bound {
+			if node_next.cost + node_next.rest_lower_bound >= upper_bound {
 				continue
 			}
 
-			push(&heap, node_next)
+			h :=
+				-f64(upper_bound_0 - len(node_next.options)) /
+				f64(node_next.cost)
+
+			push(&heap, Node{h = h, hash = hash_next})
 		}
 	}
 
@@ -303,10 +295,11 @@ get_lower_bound :: proc(rows: Grid) -> int {
 
 			for y in 0 ..< GRID_ROWS {
 				if rows[y][x] == kind {
-					if !in_last_col && !in_this_col {
+					in_this_col = true
+					if !in_last_col {
 						lower_bound += 1
 					}
-					in_this_col = true
+					break
 				}
 			}
 
@@ -322,7 +315,7 @@ get_upper_bound :: proc(grid: Grid) -> int {
 	return len(grid_region_options(grid))
 }
 
-grid_to_hash :: proc(rows: ^Grid) -> string {
+grid_to_hash :: proc(rows: ^Grid, cost: int) -> string {
 	hash := strings.Builder{}
 
 	for y in 0 ..< GRID_ROWS {
@@ -332,6 +325,8 @@ grid_to_hash :: proc(rows: ^Grid) -> string {
 		}
 		strings.write_byte(&hash, ' ')
 	}
+
+	strings.write_int(&hash, cost)
 
 	return strings.to_string(hash)
 }
