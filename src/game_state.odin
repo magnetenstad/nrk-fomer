@@ -9,7 +9,7 @@ Game_State :: struct {
 game_state_create :: proc() -> Game_State {
 	game_state := Game_State{}
 
-	grid_init(&game_state.grid)
+	grid_set(&game_state.grid)
 
 	return game_state
 }

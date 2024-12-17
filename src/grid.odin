@@ -4,34 +4,53 @@ import "core:math/rand"
 import rl "vendor:raylib"
 
 Grid :: struct {
-	rows:   [GRID_ROWS][GRID_COLUMNS]CellKind,
-	hover:  IVec2,
-	clicks: int,
+	rows:     [GRID_ROWS][GRID_COLUMNS]CellKind,
+	hover:    IVec2,
+	clicks:   int,
+	best:     int,
+	attempts: int,
 }
 
 CellKind :: enum {
 	Empty,
-	Green,
+	Gree,
 	Blue,
-	Orange,
+	Oran,
 	Pink,
 }
 
 cell_color := map[CellKind]rl.Color {
-	.Empty  = {24, 5, 46, 255},
-	.Green  = {93, 196, 121, 255},
-	.Blue   = {53, 177, 231, 255},
-	.Orange = {255, 156, 84, 255},
-	.Pink   = {249, 88, 171, 255},
+	.Empty = {24, 5, 46, 255},
+	.Gree  = {93, 196, 121, 255},
+	.Blue  = {53, 177, 231, 255},
+	.Oran  = {255, 156, 84, 255},
+	.Pink  = {249, 88, 171, 255},
 }
 
 grid_init :: proc(grid: ^Grid) {
+	grid.clicks = 0
 	for &row in grid.rows {
 		for &cell in row {
 			cell = rand.choice_enum(CellKind)
 		}
 	}
 	grid_apply_gravity(grid)
+}
+
+grid_set :: proc(grid: ^Grid) {
+	grid_init(grid)
+
+	grid.rows = {
+		{.Pink, .Pink, .Oran, .Blue, .Blue, .Pink, .Pink},
+		{.Oran, .Blue, .Oran, .Oran, .Pink, .Pink, .Blue},
+		{.Pink, .Pink, .Pink, .Gree, .Pink, .Gree, .Gree},
+		{.Pink, .Gree, .Pink, .Gree, .Gree, .Blue, .Oran},
+		{.Oran, .Pink, .Oran, .Gree, .Blue, .Gree, .Blue},
+		{.Blue, .Gree, .Oran, .Gree, .Gree, .Gree, .Oran},
+		{.Oran, .Pink, .Pink, .Pink, .Blue, .Gree, .Blue},
+		{.Pink, .Blue, .Blue, .Blue, .Gree, .Blue, .Oran},
+		{.Pink, .Oran, .Pink, .Oran, .Gree, .Blue, .Blue},
+	}
 }
 
 grid_apply_gravity :: proc(grid: ^Grid) {
@@ -58,6 +77,37 @@ grid_step :: proc(grid: ^Grid) {
 		grid.clicks += 1
 		grid_flood_empty(grid, grid.hover)
 		grid_apply_gravity(grid)
+	}
+
+	position := IVec2 {
+		int(rand.int31_max(GRID_COLUMNS)),
+		int(rand.int31_max(GRID_ROWS)),
+	}
+	for grid.rows[position.y][position.x] == CellKind.Empty {
+		position = IVec2 {
+			int(rand.int31_max(GRID_COLUMNS)),
+			int(rand.int31_max(GRID_ROWS)),
+		}
+	}
+	grid.clicks += 1
+	grid_flood_empty(grid, position)
+	grid_apply_gravity(grid)
+
+	blocks := 0
+	for row in grid.rows {
+		for cell in row {
+			if cell != CellKind.Empty {
+				blocks += 1
+			}
+		}
+	}
+	if blocks == 0 {
+		grid.attempts += 1
+		if grid.best == 0 || grid.clicks < grid.best {
+			grid.best = grid.clicks
+			print("Found", grid.best, "in", grid.attempts, "tries.")
+		}
+		grid_set(grid)
 	}
 }
 
@@ -108,6 +158,9 @@ grid_draw :: proc(grid: ^Grid) {
 			}
 		}
 	}
+}
 
-	draw_text(format(grid.clicks), {8, 32})
+grid_draw_gui :: proc(grid: ^Grid) {
+	draw_text(format(grid.clicks), {32, 64})
+	draw_text(format(grid.best), {32, 128})
 }

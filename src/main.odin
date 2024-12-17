@@ -71,6 +71,9 @@ _main_draw :: proc(game_state: ^Game_State) {
 		)
 
 		draw_text(format(rl.GetFPS()), {16, 16}, size = 16)
+
+		// GUI
+		grid_draw_gui(&game_state.grid)
 	}
 	rl.EndDrawing()
 }

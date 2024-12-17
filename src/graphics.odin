@@ -43,7 +43,7 @@ graphics_create :: proc(game_state: ^Game_State) {
 
 	rl.InitWindow(SURFACE_WIDTH, SURFACE_HEIGHT, WINDOW_TITLE)
 	rl.SetWindowState({.WINDOW_RESIZABLE})
-	rl.SetTargetFPS(60)
+	rl.SetTargetFPS(TARGET_FPS)
 
 	game_state.graphics.fonts = _load_fonts()
 	rl.GuiSetFont(game_state.graphics.fonts[Font_Id.lilita_one_regular])
