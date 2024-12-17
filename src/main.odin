@@ -26,6 +26,9 @@ main :: proc() {
 
 @(private = "file")
 _main_step :: proc(game_state: ^Game_State) {
+	grid_step(&game_state.grid)
+
+	camera_step(&game_state.graphics.camera)
 }
 
 @(private = "file")
@@ -36,11 +39,8 @@ _main_draw :: proc(game_state: ^Game_State) {
 	// Draw onto texture
 	rl.BeginTextureMode(game_state.graphics.surface)
 	{
-		draw_text(
-			"Hello world!",
-			{SURFACE_WIDTH / 2, SURFACE_HEIGHT / 2},
-			size = 16,
-		)
+		rl.ClearBackground({0, 0, 0, 0})
+		grid_draw(&game_state.grid)
 	}
 	rl.EndTextureMode()
 

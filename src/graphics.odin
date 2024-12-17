@@ -56,4 +56,13 @@ graphics_create :: proc(game_state: ^Game_State) {
 		game_state.graphics.surface.texture,
 		rl.TextureFilter.POINT,
 	)
+
+	game_state.graphics.camera.view_size = {
+		SURFACE_WIDTH / GRID_SIZE,
+		SURFACE_HEIGHT / GRID_SIZE,
+	}
+	game_state.graphics.camera.target_pos = {
+		GRID_ROWS / 2.0,
+		GRID_COLUMNS / 2.0,
+	}
 }

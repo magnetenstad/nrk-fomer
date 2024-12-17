@@ -4,8 +4,23 @@ package main
 import rl "vendor:raylib"
 
 Camera :: struct {
-	position:  FVec2,
-	target_id: int,
+	position:   FVec2,
+	target_pos: FVec2,
+	view_size:  IVec2,
+}
+
+camera_step :: proc(camera: ^Camera) {
+	target_position_world := camera.target_pos - f_vec_2(camera.view_size) / 2
+
+	scale := camera_surface_scale(camera)
+	target_position := target_position_world * GRID_SIZE * scale
+
+	camera.position = move_towards(
+		camera.position,
+		target_position,
+		CAMERA_SPEED,
+		0.25,
+	)
 }
 
 camera_gui_mouse_position :: proc(camera: ^Camera) -> FVec2 {
