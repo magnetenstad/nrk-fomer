@@ -3,6 +3,7 @@ package main
 import "core:math/rand"
 import "core:slice"
 import "core:strings"
+import "core:time"
 import rl "vendor:raylib"
 
 Grid :: [GRID_ROWS][GRID_COLUMNS]CellKind
@@ -241,19 +242,22 @@ heap_less :: proc(a: Node, b: Node) -> bool {
 
 branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 	hash_0 := grid_to_hash(grid_0, 0)
+	stopwatch := time.Stopwatch{}
+	time.stopwatch_start(&stopwatch)
 
 	histogram := map[int]int{}
 	defer delete(histogram)
 
 	node_infos := map[string]Node_Info{}
 	node_infos[hash_0] = Node_Info {
-		hash      = hash_0,
-		hash_prev = "",
-		cost      = 0,
-		grid      = grid_0^,
-		options   = grid_region_options(grid_0^),
-		// rest_lower_bound = get_lower_bound(grid_0^),
+		hash             = hash_0,
+		hash_prev        = "",
+		cost             = 0,
+		grid             = grid_0^,
+		options          = grid_region_options(grid_0^),
+		rest_lower_bound = get_lower_bound(grid_0^),
 	}
+	node_best := node_infos[hash_0]
 	defer delete(node_infos)
 
 	lower_bound := get_lower_bound(grid_0^)
@@ -268,7 +272,9 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 	}
 	defer delete(heap.array)
 
-	for len(heap.array) > 0 && lower_bound != upper_bound {
+	for (len(heap.array) > 0 &&
+		    lower_bound != upper_bound &&
+		    time.duration_seconds(time.stopwatch_duration(stopwatch)) < 5) {
 
 		node_hash := pop(&heap)
 		node := node_infos[node_hash.hash]
@@ -280,9 +286,9 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 
 		// print(node.hash, node.cost, node_hash.h, node.click_prev)
 
-		// if node.cost + node.rest_lower_bound >= upper_bound {
-		// 	continue
-		// }
+		if node.cost + node.rest_lower_bound >= upper_bound {
+			continue
+		}
 
 		for pos in node.options {
 			grid_next := node.grid
@@ -293,15 +299,20 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 				continue
 			}
 			node_next := Node_Info {
-				hash      = hash_next,
-				hash_prev = node.hash,
-				cost      = node.cost + 1,
-				grid      = grid_next,
-				options   = grid_region_options(grid_next),
-				// rest_lower_bound = get_lower_bound(grid_next),
-				pos       = pos,
+				hash             = hash_next,
+				hash_prev        = node.hash,
+				cost             = node.cost + 1,
+				grid             = grid_next,
+				options          = grid_region_options(grid_next),
+				rest_lower_bound = get_lower_bound(grid_next),
+				pos              = pos,
 			}
 			node_infos[hash_next] = node_next
+
+			if len(node_next.options) == node_next.rest_lower_bound {
+				node_next.options = []IVec2{}
+				node_next.cost += node_next.rest_lower_bound
+			}
 
 			if len(node_next.options) == 0 {
 				if node_next.cost < upper_bound {
@@ -314,14 +325,14 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 					}
 					path := traverse(node_next, &node_infos)
 					print(path)
-					return path
+					node_best = node_next
 				}
 				continue
 			}
 
-			// if node_next.cost + node_next.rest_lower_bound >= upper_bound {
-			// 	continue
-			// }
+			if node_next.cost + node_next.rest_lower_bound >= upper_bound {
+				continue
+			}
 
 			h :=
 				-f64(upper_bound_0 - len(node_next.options)) /
@@ -331,7 +342,7 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 		}
 	}
 
-	return []IVec2{}
+	return traverse(node_best, &node_infos)
 }
 
 grid_region_options :: proc(rows: Grid) -> []IVec2 {
@@ -392,10 +403,10 @@ grid_to_hash :: proc(rows: ^Grid, cost: int) -> string {
 			cell := rows[y][x]
 			strings.write_byte(&hash, u8(cell))
 		}
-		strings.write_byte(&hash, ' ')
+		// strings.write_byte(&hash, ' ')
 	}
 
-	strings.write_int(&hash, cost)
+	// strings.write_int(&hash, cost)
 
 	return strings.to_string(hash)
 }
