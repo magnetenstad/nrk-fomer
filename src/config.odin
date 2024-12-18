@@ -3,7 +3,7 @@ package main
 
 WINDOW_TITLE :: "NRK Former"
 
-TARGET_FPS :: 3000
+TARGET_FPS :: 60
 
 SURFACE_WIDTH :: 320
 SURFACE_HEIGHT :: 180

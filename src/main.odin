@@ -14,26 +14,21 @@ get_game_state :: proc() -> ^Game_State {
 main :: proc() {
 	_game_state = game_state_create()
 
-	count := branch_and_bound_search(&_game_state.grid.rows)
+	_game_state = game_state_create()
+	graphics_create(&_game_state)
 
-	print("Found", count)
+	for !rl.WindowShouldClose() {
+		_main_step(&_game_state)
+		_main_draw(&_game_state)
+	}
 
-	// _game_state = game_state_create()
-	// graphics_create(&_game_state)
-
-	// for !rl.WindowShouldClose() {
-	// 	_main_step(&_game_state)
-	// 	_main_draw(&_game_state)
-	// }
-
-	// rl.CloseWindow()
+	rl.CloseWindow()
 }
 
 
 @(private = "file")
 _main_step :: proc(game_state: ^Game_State) {
 	grid_step(&game_state.grid)
-
 	camera_step(&game_state.graphics.camera)
 }
 

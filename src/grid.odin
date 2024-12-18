@@ -1,17 +1,19 @@
 #+vet unused shadowing using-stmt style semicolon
 package main
 import "core:math/rand"
+import "core:slice"
 import "core:strings"
 import rl "vendor:raylib"
 
 Grid :: [GRID_ROWS][GRID_COLUMNS]CellKind
 
-Game :: struct {
+Grid_Game :: struct {
 	rows:     Grid,
 	hover:    IVec2,
 	clicks:   int,
 	best:     int,
 	attempts: int,
+	solution: []IVec2,
 }
 
 Node :: struct {
@@ -24,7 +26,7 @@ Node_Info :: struct {
 	hash_prev:        string,
 	grid:             Grid,
 	cost:             int,
-	options:          [dynamic]IVec2,
+	options:          []IVec2,
 	rest_lower_bound: int,
 	pos:              IVec2,
 }
@@ -45,7 +47,7 @@ cell_kind_color := map[CellKind]rl.Color {
 	.Pink  = {249, 88, 171, 255},
 }
 
-grid_init :: proc(grid: ^Game) {
+grid_init :: proc(grid: ^Grid_Game) {
 	grid.clicks = 0
 	for &row in grid.rows {
 		for &cell in row {
@@ -55,7 +57,7 @@ grid_init :: proc(grid: ^Game) {
 	grid_apply_gravity(&grid.rows)
 }
 
-grid_set :: proc(grid: ^Game) {
+grid_set :: proc(grid: ^Grid_Game) {
 	grid_init(grid)
 
 	grid.rows = { 	// blue
@@ -111,20 +113,31 @@ grid_apply_gravity :: proc(rows: ^Grid) {
 	}
 }
 
-grid_step :: proc(grid: ^Game) {
-	if rl.IsMouseButtonPressed(.LEFT) {
-		if grid.rows[grid.hover.y][grid.hover.x] == CellKind.Empty {
-			return
-		}
-		grid.clicks += 1
-		grid_flood_empty(&grid.rows, grid.hover)
-		grid_apply_gravity(&grid.rows)
+grid_step :: proc(grid: ^Grid_Game) {
+	// if rl.IsMouseButtonPressed(.LEFT) {
+	// 	if grid.rows[grid.hover.y][grid.hover.x] == CellKind.Empty {
+	// 		return
+	// 	}
+	// 	grid.clicks += 1
+	// 	grid_flood_empty(&grid.rows, grid.hover)
+	// 	grid_apply_gravity(&grid.rows)
+	// }
+
+	if grid.solution == nil || len(grid.solution) == 0 {
+		grid.solution = branch_and_bound_search(&grid.rows)
 	}
 
-	position := IVec2 {
-		int(rand.int31_max(GRID_COLUMNS)),
-		int(rand.int31_max(GRID_ROWS)),
+	if grid.solution == nil || len(grid.solution) == 0 {
+		return
 	}
+
+	if !rl.IsMouseButtonPressed(.LEFT) {
+		return
+	}
+
+	position := grid.solution[0]
+	grid.solution = grid.solution[1:]
+
 	for grid.rows[position.y][position.x] == CellKind.Empty {
 		position = IVec2 {
 			int(rand.int31_max(GRID_COLUMNS)),
@@ -149,7 +162,7 @@ grid_step :: proc(grid: ^Game) {
 			grid.best = grid.clicks
 			print("Found", grid.best, "in", grid.attempts, "tries.")
 		}
-		grid_set(grid)
+		grid_init(grid)
 	}
 }
 
@@ -174,10 +187,11 @@ grid_flood_empty :: proc(rows: ^Grid, position: IVec2) {
 	}
 }
 
-grid_draw :: proc(grid: ^Game) {
+grid_draw :: proc(grid: ^Grid_Game) {
+	graphics := &get_game_state().graphics
+
 	for y in 0 ..< GRID_ROWS {
 		for x in 0 ..< GRID_COLUMNS {
-			graphics := &get_game_state().graphics
 			surface_position := camera_world_to_surface(
 				&graphics.camera,
 				IVec2{x, y},
@@ -199,9 +213,23 @@ grid_draw :: proc(grid: ^Game) {
 			}
 		}
 	}
+
+	if grid.solution != nil && len(grid.solution) > 0 {
+		surface_position := camera_world_to_surface(
+			&graphics.camera,
+			grid.solution[0],
+		)
+		rl.DrawRectangleLines(
+			i32(surface_position.x),
+			i32(surface_position.y),
+			GRID_SIZE,
+			GRID_SIZE,
+			cell_kind_color[CellKind.Empty],
+		)
+	}
 }
 
-grid_draw_gui :: proc(grid: ^Game) {
+grid_draw_gui :: proc(grid: ^Grid_Game) {
 	draw_text(format(grid.clicks), {32, 64})
 	draw_text(format(grid.best), {32, 128})
 }
@@ -210,18 +238,23 @@ heap_less :: proc(a: Node, b: Node) -> bool {
 	return a.h < b.h
 }
 
-branch_and_bound_search :: proc(grid_0: ^Grid) -> int {
+branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 	hash_0 := grid_to_hash(grid_0, 0)
+
+	histogram := map[int]int{}
+	// defer delete(histogram) TODO
 
 	node_infos := map[string]Node_Info{}
 	node_infos[hash_0] = Node_Info {
-		hash             = hash_0,
-		hash_prev        = "",
-		cost             = 0,
-		grid             = grid_0^,
-		options          = grid_region_options(grid_0^),
-		rest_lower_bound = get_lower_bound(grid_0^),
+		hash      = hash_0,
+		hash_prev = "",
+		cost      = 0,
+		grid      = grid_0^,
+		options   = grid_region_options(grid_0^),
+		// rest_lower_bound = get_lower_bound(grid_0^),
 	}
+	// defer delete(node_infos) TODO
+
 	lower_bound := get_lower_bound(grid_0^)
 	upper_bound := get_upper_bound(grid_0^)
 	upper_bound_0 := upper_bound
@@ -233,17 +266,23 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> int {
 		hash = hash_0,
 	}
 	heap := build_min_heap(array, heap_less)
-	defer delete(array)
+	// defer delete(array) TODO
 
 	for len(heap.array) > 0 && lower_bound != upper_bound {
 
 		node_hash := pop(&heap)
 		node := node_infos[node_hash.hash]
+
+		if node.cost not_in histogram {
+			histogram[node.cost] = 0
+		}
+		histogram[node.cost] += 1
+
 		// print(node.hash, node.cost, node_hash.h, node.click_prev)
 
-		if node.cost + node.rest_lower_bound >= upper_bound {
-			continue
-		}
+		// if node.cost + node.rest_lower_bound >= upper_bound {
+		// 	continue
+		// }
 
 		for pos in node.options {
 			grid_next := node.grid
@@ -254,13 +293,13 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> int {
 				continue
 			}
 			node_next := Node_Info {
-				hash             = hash_next,
-				hash_prev        = node.hash,
-				cost             = node.cost + 1,
-				grid             = grid_next,
-				options          = grid_region_options(grid_next),
-				rest_lower_bound = get_lower_bound(grid_next),
-				pos              = pos,
+				hash      = hash_next,
+				hash_prev = node.hash,
+				cost      = node.cost + 1,
+				grid      = grid_next,
+				options   = grid_region_options(grid_next),
+				// rest_lower_bound = get_lower_bound(grid_next),
+				pos       = pos,
 			}
 			node_infos[hash_next] = node_next
 
@@ -270,14 +309,19 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> int {
 					print(len(heap.array))
 					print(len(node_infos))
 					upper_bound = node_next.cost
-					print_path(node_next, &node_infos)
+					for i in 0 ..< node_next.cost {
+						print(i, histogram[i])
+					}
+					path := traverse(node_next, &node_infos)
+					print(path)
+					return path
 				}
 				continue
 			}
 
-			if node_next.cost + node_next.rest_lower_bound >= upper_bound {
-				continue
-			}
+			// if node_next.cost + node_next.rest_lower_bound >= upper_bound {
+			// 	continue
+			// }
 
 			h :=
 				-f64(upper_bound_0 - len(node_next.options)) /
@@ -287,12 +331,14 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> int {
 		}
 	}
 
-	return upper_bound
+	return []IVec2{}
 }
 
-grid_region_options :: proc(rows: Grid) -> [dynamic]IVec2 {
-	options := make([dynamic]IVec2)
+grid_region_options :: proc(rows: Grid) -> []IVec2 {
 	rows := rows
+
+	options := make([dynamic]IVec2)
+	// defer delete(options) TODO
 
 	for y in 0 ..< GRID_ROWS {
 		for x in 0 ..< GRID_COLUMNS {
@@ -303,7 +349,7 @@ grid_region_options :: proc(rows: Grid) -> [dynamic]IVec2 {
 			}
 		}
 	}
-	return options
+	return options[:]
 }
 
 get_lower_bound :: proc(rows: Grid) -> int {
@@ -354,25 +400,24 @@ grid_to_hash :: proc(rows: ^Grid, cost: int) -> string {
 	return strings.to_string(hash)
 }
 
-// grid_from_hash :: proc(hash: string) -> Grid {
-// 	rows := [GRID_ROWS][GRID_COLUMNS]CellKind{}
+traverse :: proc(
+	node_next: Node_Info,
+	node_infos: ^map[string]Node_Info,
+) -> []IVec2 {
+	path := make([dynamic]IVec2)
+	// defer delete(path) TODO
 
-// 	for y in 0 ..< GRID_ROWS {
-// 		for x in 0 ..< GRID_COLUMNS {
-// 			cell := hash[y * GRID_COLUMNS + x]
-// 			rows[y][x] = CellKind(cell)
-// 		}
-// 	}
+	append(&path, node_next.pos)
 
-// 	return rows
-// }
-
-print_path :: proc(node_next: Node_Info, node_infos: ^map[string]Node_Info) {
-	print(node_next.pos)
 	hash := node_next.hash_prev
-	for (hash in node_infos) { 	// this is a while!
+	for (hash in node_infos) { 	// this is a while
 		node := node_infos[hash]
-		print(node.pos)
+		if node.cost > 0 {
+			append(&path, node.pos)
+		}
 		hash = node.hash_prev
 	}
+	slice.reverse(path[:])
+
+	return path[:]
 }
