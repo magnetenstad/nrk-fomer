@@ -3,7 +3,7 @@ package main
 
 Game_State :: struct {
 	graphics: Graphics,
-	grid:     Grid,
+	grid:     Grid_Game,
 }
 
 game_state_create :: proc() -> Game_State {
