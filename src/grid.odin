@@ -21,11 +21,12 @@ Node :: struct {
 
 Node_Info :: struct {
 	hash:             string,
+	hash_prev:        string,
 	grid:             Grid,
 	cost:             int,
 	options:          [dynamic]IVec2,
 	rest_lower_bound: int,
-	click_prev:       IVec2,
+	pos:              IVec2,
 }
 
 CellKind :: enum {
@@ -57,13 +58,19 @@ grid_init :: proc(grid: ^Game) {
 grid_set :: proc(grid: ^Game) {
 	grid_init(grid)
 
-	grid.rows = {
-		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
-		// {.Empty, .Empty, .Empty, .Empty, .Empty, .Empty, .Empty},
+	grid.rows = { 	// blue
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+		{.Blue, .Blue, .Blue, .Blue, .Blue, .Blue, .Blue},
+	}
+
+	grid.rows = { 	// 17.12.24
 		{.Pink, .Pink, .Oran, .Blue, .Blue, .Pink, .Pink},
 		{.Oran, .Blue, .Oran, .Oran, .Pink, .Pink, .Blue},
 		{.Pink, .Pink, .Pink, .Gree, .Pink, .Gree, .Gree},
@@ -73,6 +80,18 @@ grid_set :: proc(grid: ^Game) {
 		{.Oran, .Pink, .Pink, .Pink, .Blue, .Gree, .Blue},
 		{.Pink, .Blue, .Blue, .Blue, .Gree, .Blue, .Oran},
 		{.Pink, .Oran, .Pink, .Oran, .Gree, .Blue, .Blue},
+	}
+
+	grid.rows = { 	// 18.12.24
+		{.Gree, .Pink, .Pink, .Gree, .Pink, .Gree, .Gree},
+		{.Blue, .Oran, .Pink, .Gree, .Blue, .Pink, .Pink},
+		{.Gree, .Blue, .Oran, .Gree, .Oran, .Gree, .Blue},
+		{.Blue, .Blue, .Oran, .Oran, .Pink, .Oran, .Gree},
+		{.Blue, .Oran, .Gree, .Pink, .Gree, .Oran, .Oran},
+		{.Blue, .Gree, .Pink, .Blue, .Blue, .Oran, .Pink},
+		{.Oran, .Blue, .Blue, .Oran, .Blue, .Oran, .Blue},
+		{.Pink, .Pink, .Pink, .Gree, .Blue, .Blue, .Oran},
+		{.Gree, .Gree, .Pink, .Oran, .Oran, .Blue, .Pink},
 	}
 }
 
@@ -192,12 +211,12 @@ heap_less :: proc(a: Node, b: Node) -> bool {
 }
 
 branch_and_bound_search :: proc(grid_0: ^Grid) -> int {
-
 	hash_0 := grid_to_hash(grid_0, 0)
 
 	node_infos := map[string]Node_Info{}
 	node_infos[hash_0] = Node_Info {
 		hash             = hash_0,
+		hash_prev        = "",
 		cost             = 0,
 		grid             = grid_0^,
 		options          = grid_region_options(grid_0^),
@@ -236,18 +255,22 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> int {
 			}
 			node_next := Node_Info {
 				hash             = hash_next,
+				hash_prev        = node.hash,
 				cost             = node.cost + 1,
 				grid             = grid_next,
 				options          = grid_region_options(grid_next),
 				rest_lower_bound = get_lower_bound(grid_next),
-				click_prev       = pos,
+				pos              = pos,
 			}
 			node_infos[hash_next] = node_next
 
 			if len(node_next.options) == 0 {
 				if node_next.cost < upper_bound {
 					print("Found", node_next.cost)
+					print(len(heap.array))
+					print(len(node_infos))
 					upper_bound = node_next.cost
+					print_path(node_next, &node_infos)
 				}
 				continue
 			}
@@ -343,3 +366,13 @@ grid_to_hash :: proc(rows: ^Grid, cost: int) -> string {
 
 // 	return rows
 // }
+
+print_path :: proc(node_next: Node_Info, node_infos: ^map[string]Node_Info) {
+	print(node_next.pos)
+	hash := node_next.hash_prev
+	for (hash in node_infos) { 	// this is a while!
+		node := node_infos[hash]
+		print(node.pos)
+		hash = node.hash_prev
+	}
+}
