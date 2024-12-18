@@ -49,9 +49,10 @@ cell_kind_color := map[CellKind]rl.Color {
 
 grid_init :: proc(grid: ^Grid_Game) {
 	grid.clicks = 0
+	choices := []CellKind{.Gree, .Blue, .Oran, .Pink}
 	for &row in grid.rows {
 		for &cell in row {
-			cell = rand.choice_enum(CellKind)
+			cell = rand.choice(choices)
 		}
 	}
 	grid_apply_gravity(&grid.rows)
@@ -242,7 +243,7 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 	hash_0 := grid_to_hash(grid_0, 0)
 
 	histogram := map[int]int{}
-	// defer delete(histogram) TODO
+	defer delete(histogram)
 
 	node_infos := map[string]Node_Info{}
 	node_infos[hash_0] = Node_Info {
@@ -253,20 +254,19 @@ branch_and_bound_search :: proc(grid_0: ^Grid) -> []IVec2 {
 		options   = grid_region_options(grid_0^),
 		// rest_lower_bound = get_lower_bound(grid_0^),
 	}
-	// defer delete(node_infos) TODO
+	defer delete(node_infos)
 
 	lower_bound := get_lower_bound(grid_0^)
 	upper_bound := get_upper_bound(grid_0^)
 	upper_bound_0 := upper_bound
 	print(lower_bound, upper_bound)
 
-	array := make([dynamic]Node, 1)
-	array[0] = Node {
+	heap := build_min_heap(make([dynamic]Node, 1), heap_less)
+	heap.array[0] = Node {
 		h    = 0,
 		hash = hash_0,
 	}
-	heap := build_min_heap(array, heap_less)
-	// defer delete(array) TODO
+	defer delete(heap.array)
 
 	for len(heap.array) > 0 && lower_bound != upper_bound {
 
